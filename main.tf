@@ -177,66 +177,6 @@ data "cloudinit_config" "that" {
   }
 }
 
-resource "oci_core_instance" "that" {
-  availability_domain = data.oci_identity_availability_domains.this.availability_domains.0.name
-  compartment_id      = oci_identity_compartment.this.id
-  shape               = local.shapes.flex
-
-  display_name         = "Oracle Linux"
-  preserve_boot_volume = false
-
-  metadata = {
-    ssh_authorized_keys = var.ssh_public_key
-    user_data           = data.cloudinit_config.that.rendered
-  }
-
-  agent_config {
-    are_all_plugins_disabled = true
-    is_management_disabled   = true
-    is_monitoring_disabled   = true
-  }
-
-  availability_config {
-    is_live_migration_preferred = null
-  }
-
-  create_vnic_details {
-    assign_public_ip = false
-    display_name     = "Oracle Linux"
-    hostname_label   = "oracle-linux"
-    nsg_ids          = [oci_core_network_security_group.this.id]
-    subnet_id        = oci_core_subnet.this.id
-  }
-
-  shape_config {
-    memory_in_gbs = 24
-    ocpus         = 4
-  }
-
-  source_details {
-    source_id               = data.oci_core_images.that.images.0.id
-    source_type             = "image"
-    boot_volume_size_in_gbs = 100
-  }
-
-  lifecycle {
-    ignore_changes = [source_details.0.source_id]
-  }
-}
-
-data "oci_core_private_ips" "that" {
-  ip_address = oci_core_instance.that.private_ip
-  subnet_id  = oci_core_subnet.this.id
-}
-
-resource "oci_core_public_ip" "that" {
-  compartment_id = oci_identity_compartment.this.id
-  lifetime       = "RESERVED"
-
-  display_name  = oci_core_instance.that.display_name
-  private_ip_id = data.oci_core_private_ips.that.private_ips.0.id
-}
-
 resource "oci_core_volume_backup_policy" "this" {
   count = 3
 
@@ -252,15 +192,4 @@ resource "oci_core_volume_backup_policy" "this" {
     retention_seconds = 86400
     time_zone         = "REGIONAL_DATA_CENTER_TIME"
   }
-}
-
-resource "oci_core_volume_backup_policy_assignment" "this" {
-  count = 3
-
-  asset_id = (
-    count.index < 2 ?
-    oci_core_instance.this[count.index].boot_volume_id :
-    oci_core_instance.that.boot_volume_id
-  )
-  policy_id = oci_core_volume_backup_policy.this[count.index].id
 }
